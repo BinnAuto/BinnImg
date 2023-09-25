@@ -1,6 +1,7 @@
 ﻿using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Linq.Expressions;
 using Svg;
 
 namespace BinnImg
@@ -326,6 +327,17 @@ namespace BinnImg
             }
 
             ImageData.Save(filePath);
+        }
+
+
+        /// <summary>
+        /// Converts the image to a byte array
+        /// </summary>
+        public byte[] ToPNGByteArray()
+        {
+            using MemoryStream stream = new();
+            ImageData.Save(stream, ImageFormat.Png);
+            return stream.ToArray();
         }
 
 
