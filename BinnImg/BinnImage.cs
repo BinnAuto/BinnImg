@@ -208,6 +208,51 @@ namespace BinnImg
             }
         }
 
+        /// <summary>
+        /// Maps the R, G, and B channels of the image to the specified colors. Transparency is retained in the output image
+        /// </summary>
+        public void MapColorChannels(Color redChannel, Color greenChannel, Color blueChannel)
+        {
+            for (int x = 0; x < Width; x++)
+            {
+                for (int y = 0; y < Height; y++)
+                {
+                    Color input = GetPixel(x, y);
+                    if (input.A == 0)
+                    {
+                        SetPixel(x, y, Color.TransparentWhite);
+                        continue;
+                    }
+                    float r = input.R;
+                    float g = input.G;
+                    float b = input.B;
+                    r /= 255.0f;
+                    g /= 255.0f;
+                    b /= 255.0f;
+                    float min = 0;
+                    if (input.R + input.G + input.B > 255)
+                    {
+                        min = Math.Min(r, Math.Min(g, b));
+                    }
+                    r -= min;
+                    g -= min;
+                    b -= min;
+                    min *= 255;
+                    float newBlue = (r * redChannel.B) + (g * greenChannel.B) + (b * blueChannel.B) + min;
+                    float newRed = (r * redChannel.R) + (g * greenChannel.R) + (b * blueChannel.R) + min;
+                    float newGreen = (r * redChannel.G) + (g * greenChannel.G) + (b * blueChannel.G) + min;
+
+                    // Awkwardly handles errors arising from white/brighter pixels
+                    newRed = Math.Min(newRed, 255);
+                    newGreen = Math.Min(newGreen, 255);
+                    newBlue = Math.Min(newBlue, 255);
+
+                    Color newColor = new(input.A, (byte)newRed, (byte)newGreen, (byte)newBlue);
+                    SetPixel(x, y, newColor);
+                }
+            }
+        }
+
 
         /// <summary>
         /// Applies a BinnImage on top of the base image, using the default application settings
