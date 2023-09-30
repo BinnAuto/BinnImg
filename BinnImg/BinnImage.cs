@@ -1,7 +1,6 @@
 ﻿using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
-using System.Linq.Expressions;
 using Svg;
 
 namespace BinnImg
@@ -171,39 +170,52 @@ namespace BinnImg
         /// </summary>
         public void MapColorChannels(Color alphaChannel, Color redChannel, Color greenChannel, Color blueChannel)
         {
+            var colorCache = new Dictionary<Color, Color>();
             for (int x = 0; x < Width; x++)
             {
                 for (int y = 0; y < Height; y++)
                 {
                     Color input = GetPixel(x, y);
-                    float r = input.R;
-                    float g = input.G;
-                    float b = input.B;
-                    float a = 255 - input.A;
-                    r /= 255.0f;
-                    g /= 255.0f;
-                    b /= 255.0f;
-                    a /= 255.0f;
-                    float min = 0;
-                    if (input.R + input.G + input.B > 255)
+                    if (!colorCache.ContainsKey(input))
                     {
-                        min = Math.Min(r, Math.Min(g, b));
+
+                        float r = input.R;
+                        float g = input.G;
+                        float b = input.B;
+                        float a = 255 - input.A;
+                        r /= 255.0f;
+                        g /= 255.0f;
+                        b /= 255.0f;
+                        a /= 255.0f;
+                        float min = 0;
+                        if (input.R + input.G + input.B > 255)
+                        {
+                            min = Math.Min(r, Math.Min(g, b));
+                        }
+                        r -= min;
+                        g -= min;
+                        b -= min;
+                        min *= 255;
+                        float newBlue = (a * alphaChannel.B) + (1 - a) * ((r * redChannel.B) + (g * greenChannel.B) + (b * blueChannel.B) + min);
+                        float newRed = (a * alphaChannel.R) + (1 - a) * ((r * redChannel.R) + (g * greenChannel.R) + (b * blueChannel.R) + min);
+                        float newGreen = (a * alphaChannel.G) + (1 - a) * ((r * redChannel.G) + (g * greenChannel.G) + (b * blueChannel.G) + min);
+
+                        // Awkwardly handles errors arising from white/brighter pixels
+                        newRed = Math.Min(newRed, 255);
+                        newGreen = Math.Min(newGreen, 255);
+                        newBlue = Math.Min(newBlue, 255);
+
+                        Color newColor = new(input.A, (byte)newRed, (byte)newGreen, (byte)newBlue);
+                        if (colorCache.Count < 10)
+                        {
+                            colorCache[input] = newColor;
+                        }
+                        SetPixel(x, y, newColor);
                     }
-                    r -= min;
-                    g -= min;
-                    b -= min;
-                    min *= 255;
-                    float newBlue = (a * alphaChannel.B) + (1 - a) * ((r * redChannel.B) + (g * greenChannel.B) + (b * blueChannel.B) + min);
-                    float newRed = (a * alphaChannel.R) + (1 - a) * ((r * redChannel.R) + (g * greenChannel.R) + (b * blueChannel.R) + min);
-                    float newGreen = (a * alphaChannel.G) + (1 - a) * ((r * redChannel.G) + (g * greenChannel.G) + (b * blueChannel.G) + min);
-
-                    // Awkwardly handles errors arising from white/brighter pixels
-                    newRed = Math.Min(newRed, 255);
-                    newGreen = Math.Min(newGreen, 255);
-                    newBlue = Math.Min(newBlue, 255);
-
-                    Color newColor = new(255, (byte)newRed, (byte)newGreen, (byte)newBlue);
-                    SetPixel(x, y, newColor);
+                    else
+                    {
+                        SetPixel(x, y, colorCache[input]);
+                    }
                 }
             }
         }
@@ -213,42 +225,54 @@ namespace BinnImg
         /// </summary>
         public void MapColorChannels(Color redChannel, Color greenChannel, Color blueChannel)
         {
+            var colorCache = new Dictionary<Color, Color>();
             for (int x = 0; x < Width; x++)
             {
                 for (int y = 0; y < Height; y++)
                 {
                     Color input = GetPixel(x, y);
-                    if (input.A == 0)
+                    if (!colorCache.ContainsKey(input))
                     {
-                        SetPixel(x, y, Color.TransparentWhite);
-                        continue;
+                        if (input.A == 0)
+                        {
+                            SetPixel(x, y, Color.TransparentWhite);
+                            continue;
+                        }
+                        float r = input.R;
+                        float g = input.G;
+                        float b = input.B;
+                        r /= 255.0f;
+                        g /= 255.0f;
+                        b /= 255.0f;
+                        float min = 0;
+                        if (input.R + input.G + input.B > 255)
+                        {
+                            min = Math.Min(r, Math.Min(g, b));
+                        }
+                        r -= min;
+                        g -= min;
+                        b -= min;
+                        min *= 255;
+                        float newBlue = (r * redChannel.B) + (g * greenChannel.B) + (b * blueChannel.B) + min;
+                        float newRed = (r * redChannel.R) + (g * greenChannel.R) + (b * blueChannel.R) + min;
+                        float newGreen = (r * redChannel.G) + (g * greenChannel.G) + (b * blueChannel.G) + min;
+
+                        // Awkwardly handles errors arising from white/brighter pixels
+                        newRed = Math.Min(newRed, 255);
+                        newGreen = Math.Min(newGreen, 255);
+                        newBlue = Math.Min(newBlue, 255);
+
+                        Color newColor = new(input.A, (byte)newRed, (byte)newGreen, (byte)newBlue);
+                        if(colorCache.Count < 10)
+                        {
+                            colorCache[input] = newColor;
+                        }
+                        SetPixel(x, y, newColor);
                     }
-                    float r = input.R;
-                    float g = input.G;
-                    float b = input.B;
-                    r /= 255.0f;
-                    g /= 255.0f;
-                    b /= 255.0f;
-                    float min = 0;
-                    if (input.R + input.G + input.B > 255)
+                    else
                     {
-                        min = Math.Min(r, Math.Min(g, b));
+                        SetPixel(x, y, colorCache[input]);
                     }
-                    r -= min;
-                    g -= min;
-                    b -= min;
-                    min *= 255;
-                    float newBlue = (r * redChannel.B) + (g * greenChannel.B) + (b * blueChannel.B) + min;
-                    float newRed = (r * redChannel.R) + (g * greenChannel.R) + (b * blueChannel.R) + min;
-                    float newGreen = (r * redChannel.G) + (g * greenChannel.G) + (b * blueChannel.G) + min;
-
-                    // Awkwardly handles errors arising from white/brighter pixels
-                    newRed = Math.Min(newRed, 255);
-                    newGreen = Math.Min(newGreen, 255);
-                    newBlue = Math.Min(newBlue, 255);
-
-                    Color newColor = new(input.A, (byte)newRed, (byte)newGreen, (byte)newBlue);
-                    SetPixel(x, y, newColor);
                 }
             }
         }
@@ -510,7 +534,7 @@ namespace BinnImg
         }
 
 
-        private Color OverlayColor(Color bottom, Color top)
+        public static Color OverlayColor(Color bottom, Color top)
         {
             if (top.A == 255)
             {
