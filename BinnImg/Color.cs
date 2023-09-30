@@ -685,7 +685,16 @@
 
         #endregion
 
-        #region From Hex methods
+        #region Static From methods
+
+        /// <summary>
+        /// Returns a Color object from a base10 equivalent of its hex value
+        /// </summary>
+        public static Color FromLong(long value)
+        {
+            return FromHex(value.ToString("x6"));
+        }
+
 
         /// <summary>
         /// Returns a Color object from a string representation of its hex value
