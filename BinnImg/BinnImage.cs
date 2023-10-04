@@ -17,7 +17,7 @@ namespace BinnImg
         /// </summary>
         public int Height { get; private set; }
 
-        public Bitmap ImageData { get; private set; }
+        public Bitmap ImageData { get; private set; } = null!;
 
 
         public BinnImage(int width, int height)
@@ -40,11 +40,28 @@ namespace BinnImg
             ClearImage(backgroundColor);
         }
 
+
         /// <summary>
         /// Returns the color of the pixel at the specified coordinates.
         /// </summary>
         public Color GetPixel(int x, int y)
         {
+            var color = ImageData.GetPixel(x, y);
+            return new(color.A, color.R, color.G, color.B);
+        }
+
+
+        /// <summary>
+        /// Attempts to return the color of the pixel at the specified coordinates.
+        /// If the coordinates are outside of the image's dimensions, null is returned.
+        /// </summary>
+        public Color? TryGetPixel(int x, int y)
+        {
+            if (x < 0 || x >= Width
+                || y < 0 || y >= Height)
+            {
+                return null;
+            }
             var color = ImageData.GetPixel(x, y);
             return new(color.A, color.R, color.G, color.B);
         }
@@ -61,17 +78,27 @@ namespace BinnImg
 
 
         /// <summary>
+        /// Attempts to set the specified color to the pixel at the specified coordinates.
+        /// If the coordinates are outside of the image's dimensions, the edit is not performed
+        /// and no exception is thrown.
+        /// </summary>
+        public void TrySetPixel(int x, int y, Color color)
+        {
+            if(x < 0 || x >= Width
+                || y < 0 || y >= Height)
+            {
+                return;
+            }
+            SetPixel(x, y, color);
+        }
+
+
+        /// <summary>
         /// Sets all pixels on the image to the specified color.
         /// </summary>
         public void ClearImage(Color color)
         {
-            for (int x = 0; x < Width; x++)
-            {
-                for (int y = 0; y < Height; y++)
-                {
-                    SetPixel(x, y, color);
-                }
-            }
+            this[0..Width, 0..Height] = color;
         }
 
 
@@ -158,7 +185,7 @@ namespace BinnImg
             {
                 for (int y = 0; y < result.Height; y++)
                 {
-                    result.SetPixel(x, y, GetPixel(minX + x, minY + y));
+                    result[x, y] = this[minX + x, minY + y];
                 }
             }
             return result;
@@ -188,7 +215,7 @@ namespace BinnImg
             {
                 for (int y = 0; y < Height; y++)
                 {
-                    Color input = GetPixel(x, y);
+                    Color input = this[x, y]!;
                     if (!colorCache.ContainsKey(input))
                     {
                         Color newColor = MapColor(input, alphaChannel, redChannel, greenChannel, blueChannel);
@@ -196,11 +223,11 @@ namespace BinnImg
                         {
                             colorCache[input] = newColor;
                         }
-                        SetPixel(x, y, newColor);
+                        this[x, y] = newColor;
                     }
                     else
                     {
-                        SetPixel(x, y, colorCache[input]);
+                        this[x, y] = colorCache[input];
                     }
                 }
             }
@@ -230,7 +257,7 @@ namespace BinnImg
             {
                 for (int y = 0; y < Height; y++)
                 {
-                    Color input = GetPixel(x, y);
+                    Color input = this[x, y]!;
                     if (!colorCache.ContainsKey(input))
                     {
                         Color newColor = MapColor(input, redChannel, greenChannel, blueChannel);
@@ -238,11 +265,11 @@ namespace BinnImg
                         {
                             colorCache[input] = newColor;
                         }
-                        SetPixel(x, y, newColor);
+                        this[x, y] = newColor;
                     }
                     else
                     {
-                        SetPixel(x, y, colorCache[input]);
+                        this[x, y] = colorCache[input];
                     }
                 }
             }
@@ -311,7 +338,7 @@ namespace BinnImg
             newGreen = Math.Min(newGreen, 255);
             newBlue = Math.Min(newBlue, 255);
 
-            return new(inputColor.A, (byte)newRed, (byte)newGreen, (byte)newBlue);
+            return new(255, (byte)newRed, (byte)newGreen, (byte)newBlue);
         }
 
 
@@ -346,7 +373,7 @@ namespace BinnImg
                 image.SaveAsPNG(pngPath);
                 ApplyDecalImageFromFile(pngPath, applicationSettings);
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 if (File.Exists(pngPath))
                 {
@@ -398,9 +425,9 @@ namespace BinnImg
                         if (x < Width && y < Height)
                         {
                             Color topPixel = imageToApply.GetPixel(x - applicationSettings.Coordinates.Item1, y - applicationSettings.Coordinates.Item2);
-                            Color bottomPixel = GetPixel(x, y);
+                            Color bottomPixel = this[x, y]!;
                             Color newColor = OverlayColor(bottomPixel, topPixel);
-                            SetPixel(x, y, newColor);
+                            this[x, y] = newColor;
                         }
                     }
                 }
@@ -426,7 +453,7 @@ namespace BinnImg
             {
                 filePath += ".png";
             }
-            string directory = Path.GetDirectoryName(filePath);
+            string? directory = Path.GetDirectoryName(filePath);
             if (!string.IsNullOrWhiteSpace(directory))
             {
                 Directory.CreateDirectory(directory);
@@ -450,31 +477,39 @@ namespace BinnImg
         /// <summary>
         /// Copies the BinnImage into a separate instance
         /// </summary>
-        public BinnImage Copy(BinnImage source)
+        public BinnImage Copy()
         {
-            BinnImage result = new(source.Width, source.Height);
+            BinnImage result = new(Width, Height);
             for (int x = 0; x < Width; x++)
             {
                 for (int y = 0; y < Height; y++)
                 {
-                    result.SetPixel(x, y, source.GetPixel(x, y));
+                    result[x, y] = this[x, y];
                 }
             }
             return result;
         }
 
 
+        public void ScaleImage(decimal percentage)
+        {
+            int newWidth = (int)(Width * percentage);
+            int newHeight = (int)(Height * percentage);
+            ScaleImage(newWidth, newHeight);
+        }
+
+
         public void ScaleImage(int? width, int? height)
         {
-            if (width != null || height != null)
+            if (width.HasValue || height.HasValue)
             {
-                if (height == null)
+                if (!height.HasValue)
                 {
-                    height = (int)Math.Round((float)(Height * width.Value) / Width);
+                    height = (int)Math.Round((float)(Height * width!.Value) / Width);
                 }
-                if (width == null)
+                if (!width.HasValue)
                 {
-                    width = (int)Math.Round((float)(Width * height.Value) / Height);
+                    width = (int)Math.Round((float)(Width * height!.Value) / Height);
                 }
                 Width = width.Value;
                 Height = height.Value;
@@ -624,8 +659,8 @@ namespace BinnImg
             {
                 for (int y = 0; y < Height; y++)
                 {
-                    Color a = GetPixel(x, y);
-                    Color b = obj.GetPixel(x, y);
+                    Color a = this[x, y]!;
+                    Color b = obj[x, y]!;
                     if (a != b)
                     {
                         return false;
@@ -651,6 +686,52 @@ namespace BinnImg
         public static bool operator !=(BinnImage a, BinnImage b)
         {
             return !a.Equals(b);
+        }
+
+
+        public Color? this[int x, int y]
+        {
+            get => TryGetPixel(x, y);
+            set => TrySetPixel(x, y, value!);
+        }
+
+
+        public Color this[Range rangeX, int y]
+        {
+            set
+            {
+                for (int x = rangeX.Start.Value; x <= rangeX.End.Value; x++)
+                {
+                    this[x, y] = value;
+                }
+            }
+        }
+
+
+        public Color this[int x, Range rangeY]
+        {
+            set
+            {
+                for (int y = rangeY.Start.Value; y <= rangeY.End.Value; y++)
+                {
+                    this[x, y] = value;
+                }
+            }
+        }
+
+
+        public Color this[Range rangeX, Range rangeY]
+        {
+            set
+            {
+                for(int x = rangeX.Start.Value; x <= rangeX.End.Value; x++)
+                {
+                    for(int y = rangeY.Start.Value; y <= rangeY.End.Value; y++)
+                    {
+                        this[x, y] = value;
+                    }
+                }
+            }
         }
     }
 }
