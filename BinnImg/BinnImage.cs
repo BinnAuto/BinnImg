@@ -453,13 +453,62 @@ namespace BinnImg
             {
                 filePath += ".png";
             }
+            SaveToFile(filePath, ImageFormat.Png);
+        }
+
+
+        /// <summary>
+        /// Saves the image as a JPG file
+        /// </summary>
+        public void SaveAsJPEG(string filePath)
+        {
+            if (!filePath.EndsWith(".jpg", StringComparison.InvariantCultureIgnoreCase)
+                || !filePath.EndsWith(".jpeg", StringComparison.InvariantCultureIgnoreCase))
+            {
+                filePath += ".jpg";
+            }
+            SaveToFile(filePath, ImageFormat.Jpeg);
+        }
+
+
+        /// <summary>
+        /// Saves the image as a BMP file
+        /// </summary>
+        public void SaveAsBMP(string filePath)
+        {
+            if (!filePath.EndsWith(".bmp", StringComparison.InvariantCultureIgnoreCase))
+            {
+                filePath += ".bmp";
+            }
+            SaveToFile(filePath, ImageFormat.Bmp);
+        }
+
+
+        /// <summary>
+        /// Saves the image as a BMP file
+        /// </summary>
+        public void SaveAsICO(string filePath)
+        {
+            if (!filePath.EndsWith(".ico", StringComparison.InvariantCultureIgnoreCase))
+            {
+                filePath += ".ico";
+            }
+            SaveToFile(filePath, ImageFormat.Icon);
+        }
+
+
+        /// <summary>
+        /// Saves the image to disk
+        /// </summary>
+        public void SaveToFile(string filePath, ImageFormat format)
+        {
             string? directory = Path.GetDirectoryName(filePath);
             if (!string.IsNullOrWhiteSpace(directory))
             {
                 Directory.CreateDirectory(directory);
             }
 
-            ImageData.Save(filePath);
+            ImageData.Save(filePath, format);
         }
 
 
@@ -491,10 +540,10 @@ namespace BinnImg
         }
 
 
-        public void ScaleImage(decimal percentage)
+        public void ScaleImage(decimal multiplier)
         {
-            int newWidth = (int)(Width * percentage);
-            int newHeight = (int)(Height * percentage);
+            int newWidth = (int)(Width * multiplier);
+            int newHeight = (int)(Height * multiplier);
             ScaleImage(newWidth, newHeight);
         }
 
