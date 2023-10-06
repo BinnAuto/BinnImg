@@ -1,7 +1,7 @@
-﻿using System.Drawing;
+﻿using Svg;
+using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
-using Svg;
 
 namespace BinnImg
 {
@@ -102,7 +102,25 @@ namespace BinnImg
         /// </summary>
         public void ClearImage(Color color)
         {
-            this[0..Width, 0..Height] = color;
+            Rectangle rect = new(0, 0, ImageData.Width, ImageData.Height);
+            var bitmapData = ImageData.LockBits(rect, ImageLockMode.ReadWrite, ImageData.PixelFormat);
+            IntPtr sourcePointer = bitmapData.Scan0;
+            unsafe
+            {
+                for(int y = 0; y < Height; y++)
+                {
+                    byte* source = (byte*)sourcePointer.ToPointer() + bitmapData.Stride * y;
+                    for(int x = Width; x > 0; x--)
+                    {
+                        source[0] = color.B;
+                        source[1] = color.G;
+                        source[2] = color.R;
+                        source[3] = color.A;
+                        source += 4;
+                    }
+                }
+                ImageData.UnlockBits(bitmapData);
+            }
         }
 
 
@@ -201,107 +219,49 @@ namespace BinnImg
         /// </summary>
         public void MapColorChannels(Color alphaChannel, Color redChannel, Color greenChannel, Color blueChannel)
         {
-            MapColorChannels(alphaChannel, redChannel, greenChannel, blueChannel, Array.Empty<Color>());
-        }
-
-
-        /// <summary>
-        /// Maps the A, R, G, and B channels of the image to the specified colors. Transparency is not retained in the output image
-        /// </summary>
-        public void MapColorChannels(Color alphaChannel, Color redChannel, Color greenChannel, Color blueChannel, IEnumerable<Color> cachePrimer)
-        {
-            var colorCache = new Dictionary<Color, Color>();
-            foreach (var color in cachePrimer)
+            Rectangle rect = new(0, 0, ImageData.Width, ImageData.Height);
+            var bitmapData = ImageData.LockBits(rect, ImageLockMode.ReadWrite, ImageData.PixelFormat);
+            IntPtr sourcePointer = bitmapData.Scan0;
+            unsafe
             {
-                colorCache[color] = MapColor(color, alphaChannel, redChannel, greenChannel, blueChannel);
-            }
-            for (int x = 0; x < Width; x++)
-            {
-                for (int y = 0; y < Height; y++)
+                for(int y = 0; y < Height; y++)
                 {
-                    Color input = this[x, y]!;
-                    if (!colorCache.ContainsKey(input))
+                    byte* source = (byte*)sourcePointer.ToPointer() + bitmapData.Stride * y;
+                    for(int x = Width; x > 0; x--)
                     {
-                        Color newColor = MapColor(input, alphaChannel, redChannel, greenChannel, blueChannel);
-                        if (colorCache.Count < 10)
+                        float b = source[0];
+                        float g = source[1];
+                        float r = source[2];
+                        float a = 255 - source[3];
+                        float min = 0;
+                        if (r + g + b > 255)
                         {
-                            colorCache[input] = newColor;
+                            min = Math.Min(r, Math.Min(g, b)) / 255.0f;
                         }
-                        this[x, y] = newColor;
-                    }
-                    else
-                    {
-                        this[x, y] = colorCache[input];
-                    }
-                }
-            }
-        }
-
-
-        /// <summary>
-        /// Maps the R, G, and B channels of the image to the specified colors. Transparency is retained in the output image
-        /// </summary>
-        public void MapColorChannels(Color redChannel, Color greenChannel, Color blueChannel)
-        {
-            MapColorChannels(redChannel, greenChannel, blueChannel, Array.Empty<Color>());
-        }
-
-
-        /// <summary>
-        /// Maps the R, G, and B channels of the image to the specified colors. Transparency is retained in the output image
-        /// </summary>
-        public void MapColorChannels(Color redChannel, Color greenChannel, Color blueChannel, IEnumerable<Color> cachePrimer)
-        {
-            for (int x = 0; x < Width; x++)
-            {
-                for (int y = 0; y < Height; y++)
-                {
-                    Color input = this[x, y]!;
-                    if (!colorCache.ContainsKey(input))
-                    {
-                        Color newColor = MapColor(input, redChannel, greenChannel, blueChannel);6
-                        this[x, y] = newColor;
-                    }
-                    else
-                    {
-                        this[x, y] = colorCache[input];
+                        r /= 255.0f;
+                        g /= 255.0f;
+                        b /= 255.0f;
+                        a /= 255.0f;
+                        r -= min;
+                        g -= min;
+                        b -= min;
+                        min *= 255;
+                        float newBlue = (a * alphaChannel.B) + (1 - a) * ((r * redChannel.B) + (g * greenChannel.B) + (b * blueChannel.B) + min);
+                        float newRed = (a * alphaChannel.R) + (1 - a) * ((r * redChannel.R) + (g * greenChannel.R) + (b * blueChannel.R) + min);
+                        float newGreen = (a * alphaChannel.G) + (1 - a) * ((r * redChannel.G) + (g * greenChannel.G) + (b * blueChannel.G) + min);
+                        // Awkwardly handles errors arising from white/brighter pixels
+                        newRed = Math.Min(newRed, 255);
+                        newGreen = Math.Min(newGreen, 255);
+                        newBlue = Math.Min(newBlue, 255);
+                        source[0] = (byte)newBlue;
+                        source[1] = (byte)newGreen;
+                        source[2] = (byte)newRed;
+                        source[3] = 255;
+                        source += 4;
                     }
                 }
+                ImageData.UnlockBits(bitmapData);
             }
-        }
-
-
-        private Color MapColor(Color inputColor, Color redChannel, Color greenChannel, Color blueChannel)
-        {
-            if (inputColor.A == 0)
-            {
-                return Color.TransparentWhite;
-            }
-            float r = inputColor.R;
-            float g = inputColor.G;
-            float b = inputColor.B;
-            r /= 255.0f;
-            g /= 255.0f;
-            b /= 255.0f;
-            float min = 0;
-            if (inputColor.R + inputColor.G + inputColor.B > 255)
-            {
-                min = Math.Min(r, Math.Min(g, b));
-            }
-            r -= min;
-            g -= min;
-            b -= min;
-            min *= 255;
-            float newBlue = (r * redChannel.B) + (g * greenChannel.B) + (b * blueChannel.B) + min;
-            float newRed = (r * redChannel.R) + (g * greenChannel.R) + (b * blueChannel.R) + min;
-            float newGreen = (r * redChannel.G) + (g * greenChannel.G) + (b * blueChannel.G) + min;
-
-            // Awkwardly handles errors arising from white/brighter pixels
-            newRed = Math.Min(newRed, 255);
-            newGreen = Math.Min(newGreen, 255);
-            newBlue = Math.Min(newBlue, 255);
-
-            return new(inputColor.A, (byte)newRed, (byte)newGreen, (byte)newBlue);
         }
 
 
@@ -334,6 +294,54 @@ namespace BinnImg
             newBlue = Math.Min(newBlue, 255);
 
             return new(255, (byte)newRed, (byte)newGreen, (byte)newBlue);
+        }
+
+
+        /// <summary>
+        /// Maps the R, G, and B channels of the image to the specified colors. Transparency is retained in the output image
+        /// </summary>
+        public void MapColorChannels(Color redChannel, Color greenChannel, Color blueChannel)
+        {
+            Rectangle rect = new(0, 0, ImageData.Width, ImageData.Height);
+            var bitmapData = ImageData.LockBits(rect, ImageLockMode.ReadWrite, ImageData.PixelFormat);
+            IntPtr sourcePointer = bitmapData.Scan0;
+            unsafe
+            {
+                for(int y = 0; y < Height; y++)
+                {
+                    byte* source = (byte*)sourcePointer.ToPointer() + bitmapData.Stride * y;
+                    for(int x = Width; x > 0; x--)
+                    {
+                        float b = source[0];
+                        float g = source[1];
+                        float r = source[2];
+                        float min = 0;
+                        if(r + g + b > 255)
+                        {
+                            min = Math.Min(r, Math.Min(g, b)) / 255.0f;
+                        }
+                        r /= 255.0f;
+                        g /= 255.0f;
+                        b /= 255.0f;
+                        r -= min;
+                        g -= min;
+                        b -= min;
+                        min *= 255;
+                        float newRed = (r * redChannel.R) + (g * greenChannel.R) + (b * blueChannel.R) + min;
+                        float newGreen = (r * redChannel.G) + (g * greenChannel.G) + (b * blueChannel.G) + min;
+                        float newBlue = (r * redChannel.B) + (g * greenChannel.B) + (b * blueChannel.B) + min;
+                        // Awkwardly handles errors arising from white/brighter pixels
+                        newRed = Math.Min(newRed, 255);
+                        newGreen = Math.Min(newGreen, 255);
+                        newBlue = Math.Min(newBlue, 255);
+                        source[0] = (byte)newBlue;
+                        source[1] = (byte)newGreen;
+                        source[2] = (byte)newRed;
+                        source += 4;
+                    }
+                }
+                ImageData.UnlockBits(bitmapData);
+            }
         }
 
 
@@ -623,49 +631,7 @@ namespace BinnImg
         /// </summary>
         public void Grayscale()
         {
-            MapColorsByMatrix(new(76, 76, 76), new(150, 150, 150), new(29, 29, 29));
-        }
-
-
-        public void MapColorsByMatrix(Color redChannel, Color greenChannel, Color blueChannel)
-        {
-            Bitmap newImage = new(ImageData.Width, ImageData.Height);
-            using var g = Graphics.FromImage(newImage);
-            ColorMatrix matrix = new(
-                new float[][]
-                {
-                    new float[] { redChannel.R / 255f, redChannel.G / 255f, redChannel.B / 255f, 0, 0},
-                    new float[] { greenChannel.R / 255f, greenChannel.G / 255f, greenChannel.B / 255f, 0, 0},
-                    new float[] { blueChannel.R / 255f, blueChannel.G / 255f, blueChannel.B / 255f, 0, 0},
-                    new float[] {0, 0, 0, 1, 0},
-                    new float[] {0, 0, 0, 0, 1}
-                });
-            using ImageAttributes attributes = new();
-            attributes.SetColorMatrix(matrix);
-            g.DrawImage(ImageData, new(0, 0, ImageData.Width, ImageData.Height),
-                0, 0, ImageData.Width, ImageData.Height, GraphicsUnit.Pixel, attributes);
-            ImageData = newImage;
-        }
-
-
-        public void MapColorsByMatrix(Color redChannel, Color greenChannel, Color blueChannel, Color alphaChannel)
-        {
-            Bitmap newImage = new(ImageData.Width, ImageData.Height);
-            using var g = Graphics.FromImage(newImage);
-            ColorMatrix matrix = new(
-                new float[][]
-                {
-                    new float[] { redChannel.R / 255f, redChannel.G / 255f, redChannel.B / 255f, 0, 0},
-                    new float[] { greenChannel.R / 255f, greenChannel.G / 255f, greenChannel.B / 255f, 0, 0},
-                    new float[] { blueChannel.R / 255f, blueChannel.G / 255f, blueChannel.B / 255f, 0, 0},
-                    new float[] { alphaChannel.R / 255f, alphaChannel.G / 255f, alphaChannel.B / 255f, 1, 0},
-                    new float[] {0, 0, 0, 0, 1}
-                });
-            using ImageAttributes attributes = new();
-            attributes.SetColorMatrix(matrix);
-            g.DrawImage(ImageData, new(0, 0, ImageData.Width, ImageData.Height),
-                0, 0, ImageData.Width, ImageData.Height, GraphicsUnit.Pixel, attributes);
-            ImageData = newImage;
+            MapColorChannels(new(76, 76, 76), new(150, 150, 150), new(29, 29, 29));
         }
 
         #endregion
