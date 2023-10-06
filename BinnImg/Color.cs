@@ -703,7 +703,7 @@
         {
             hexValue = StandardizeHexValue(hexValue);
             byte alpha = 255;
-            byte red = GetByteFromHexString(hexValue.Substring(0, 2));
+            byte red = GetByteFromHexString(hexValue[..2]);
             byte green = GetByteFromHexString(hexValue.Substring(2, 2));
             byte blue = GetByteFromHexString(hexValue.Substring(4, 2));
             if (hexValue.Length == 8)
@@ -713,7 +713,7 @@
                 green = blue;
                 blue = GetByteFromHexString(hexValue.Substring(6, 2));
             }
-            Color result = new Color(alpha, red, green, blue);
+            Color result = new(alpha, red, green, blue);
             return result;
         }
 

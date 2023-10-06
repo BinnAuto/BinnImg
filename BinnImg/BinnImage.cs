@@ -265,7 +265,7 @@ namespace BinnImg
         }
 
 
-        private Color MapColor(Color inputColor, Color alphaChannel, Color redChannel, Color greenChannel, Color blueChannel)
+        private static Color MapColor(Color inputColor, Color alphaChannel, Color redChannel, Color greenChannel, Color blueChannel)
         {
             float r = inputColor.R;
             float g = inputColor.G;
@@ -772,12 +772,10 @@ namespace BinnImg
                 graphics.SmoothingMode = SmoothingMode.HighQuality;
                 graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
-                using (ImageAttributes wrapMode = new())
-                {
-                    wrapMode.SetWrapMode(WrapMode.TileFlipXY);
-                    Rectangle newRectangle = new(0, 0, newWidth, newHeight);
-                    graphics.DrawImage(image, newRectangle, 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, wrapMode);
-                }
+                using ImageAttributes wrapMode = new();
+                wrapMode.SetWrapMode(WrapMode.TileFlipXY);
+                Rectangle newRectangle = new(0, 0, newWidth, newHeight);
+                graphics.DrawImage(image, newRectangle, 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, wrapMode);
             }
             return resultImage;
         }
@@ -807,7 +805,7 @@ namespace BinnImg
             int newWidth = Convert.ToInt32(newWidthTemp);
             int newHeight = Convert.ToInt32(newHeightTemp);
 
-            Bitmap result = new Bitmap(newWidth, newHeight);
+            Bitmap result = new(newWidth, newHeight);
             using (Graphics g = Graphics.FromImage(result))
             {
                 g.TranslateTransform(result.Width / 2, result.Height / 2);
