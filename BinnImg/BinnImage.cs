@@ -10,12 +10,25 @@ namespace BinnImg
         /// <summary>
         /// The width of the image, in pixels
         /// </summary>
-        public int Width { get; private set; }
+        public int Width
+        {
+            get
+            {
+                return ImageData.Width;
+            }
+        }
 
         /// <summary>
         /// The height of the image, in pixels
         /// </summary>
-        public int Height { get; private set; }
+        public int Height
+        {
+            get
+            {
+                return ImageData.Height;
+            }
+        }
+
 
         public Bitmap ImageData { get; private set; } = null!;
 
@@ -29,15 +42,6 @@ namespace BinnImg
         public BinnImage(int width, int height, Color backgroundColor)
         {
             CreateImage(width, height, backgroundColor);
-        }
-
-
-        private void CreateImage(int width, int height, Color backgroundColor)
-        {
-            Width = width;
-            Height = height;
-            ImageData = new Bitmap(width, height);
-            ClearImage(backgroundColor);
         }
 
 
@@ -248,11 +252,6 @@ namespace BinnImg
         /// </summary>
         public void MapColorChannels(Color redChannel, Color greenChannel, Color blueChannel, IEnumerable<Color> cachePrimer)
         {
-            var colorCache = new Dictionary<Color, Color>();
-            foreach (var color in cachePrimer)
-            {
-                colorCache[color] = MapColor(color, redChannel, greenChannel, blueChannel);
-            }
             for (int x = 0; x < Width; x++)
             {
                 for (int y = 0; y < Height; y++)
@@ -260,11 +259,7 @@ namespace BinnImg
                     Color input = this[x, y]!;
                     if (!colorCache.ContainsKey(input))
                     {
-                        Color newColor = MapColor(input, redChannel, greenChannel, blueChannel);
-                        if(colorCache.Count < 10)
-                        {
-                            colorCache[input] = newColor;
-                        }
+                        Color newColor = MapColor(input, redChannel, greenChannel, blueChannel);6
                         this[x, y] = newColor;
                     }
                     else
@@ -370,15 +365,11 @@ namespace BinnImg
                     }
                     pngPath += ".png";
                 }
-                image.SaveAsPNG(pngPath);
+                image.SaveToFile(pngPath);
                 ApplyDecalImageFromFile(pngPath, applicationSettings);
             }
             catch (Exception)
             {
-                if (File.Exists(pngPath))
-                {
-                    File.Delete(pngPath);
-                }
                 throw;
             }
             finally
@@ -396,8 +387,7 @@ namespace BinnImg
         /// </summary>
         public void ApplyDecalImageFromFile(string filePath)
         {
-            DecalApplicationSettings applicationSettings = new();
-            ApplyDecalImageFromFile(filePath, applicationSettings);
+            ApplyDecalImageFromFile(filePath, new DecalApplicationSettings());
         }
 
 
@@ -426,7 +416,7 @@ namespace BinnImg
                         {
                             Color topPixel = imageToApply.GetPixel(x - applicationSettings.Coordinates.Item1, y - applicationSettings.Coordinates.Item2);
                             Color bottomPixel = this[x, y]!;
-                            Color newColor = OverlayColor(bottomPixel, topPixel);
+                            Color newColor = Color.OverlayColors(bottomPixel, topPixel);
                             this[x, y] = newColor;
                         }
                     }
@@ -445,60 +435,43 @@ namespace BinnImg
 
 
         /// <summary>
-        /// Saves the image as a PNG file
+        /// Saves the image to disk with the given file path and image format
+        /// based off the file extension.
         /// </summary>
-        public void SaveAsPNG(string filePath)
+        public void SaveToFile(string filePath)
         {
-            if (!filePath.EndsWith(".png", StringComparison.InvariantCultureIgnoreCase))
+            ImageFormat imageFormat;
+            if(filePath.EndsWith(".png", StringComparison.InvariantCultureIgnoreCase))
             {
-                filePath += ".png";
+                imageFormat = ImageFormat.Png;
             }
-            SaveToFile(filePath, ImageFormat.Png);
+            else if(filePath.EndsWith(".jpg", StringComparison.InvariantCultureIgnoreCase)
+                || filePath.EndsWith(".jpeg", StringComparison.InvariantCultureIgnoreCase))
+            {
+                imageFormat = ImageFormat.Jpeg;
+            }
+            else if (filePath.EndsWith(".bmp", StringComparison.InvariantCultureIgnoreCase))
+            {
+                imageFormat = ImageFormat.Bmp;
+            }
+            else if (filePath.EndsWith(".ico", StringComparison.InvariantCultureIgnoreCase))
+            {
+                imageFormat = ImageFormat.Icon;
+            }
+            else if (filePath.EndsWith(".gif", StringComparison.InvariantCultureIgnoreCase))
+            {
+                imageFormat = ImageFormat.Gif;
+            }
+            else
+            {
+                throw new("Image format unknown");
+            }
+            SaveToFile(filePath, imageFormat);
         }
 
 
         /// <summary>
-        /// Saves the image as a JPG file
-        /// </summary>
-        public void SaveAsJPEG(string filePath)
-        {
-            if (!filePath.EndsWith(".jpg", StringComparison.InvariantCultureIgnoreCase)
-                || !filePath.EndsWith(".jpeg", StringComparison.InvariantCultureIgnoreCase))
-            {
-                filePath += ".jpg";
-            }
-            SaveToFile(filePath, ImageFormat.Jpeg);
-        }
-
-
-        /// <summary>
-        /// Saves the image as a BMP file
-        /// </summary>
-        public void SaveAsBMP(string filePath)
-        {
-            if (!filePath.EndsWith(".bmp", StringComparison.InvariantCultureIgnoreCase))
-            {
-                filePath += ".bmp";
-            }
-            SaveToFile(filePath, ImageFormat.Bmp);
-        }
-
-
-        /// <summary>
-        /// Saves the image as a BMP file
-        /// </summary>
-        public void SaveAsICO(string filePath)
-        {
-            if (!filePath.EndsWith(".ico", StringComparison.InvariantCultureIgnoreCase))
-            {
-                filePath += ".ico";
-            }
-            SaveToFile(filePath, ImageFormat.Icon);
-        }
-
-
-        /// <summary>
-        /// Saves the image to disk
+        /// Saves the image to disk with the given file path and image format
         /// </summary>
         public void SaveToFile(string filePath, ImageFormat format)
         {
@@ -539,7 +512,12 @@ namespace BinnImg
             return result;
         }
 
+        #region Transformation Methods
 
+        /// <summary>
+        /// Scale an image by a given ratio
+        /// </summary>
+        /// <param name="multiplier"></param>
         public void ScaleImage(decimal multiplier)
         {
             int newWidth = (int)(Width * multiplier);
@@ -548,6 +526,11 @@ namespace BinnImg
         }
 
 
+        /// <summary>
+        /// Scale the image to the specified dimensions
+        /// </summary>
+        /// <param name="width">The width of the new image</param>
+        /// <param name="height">The height of the new image</param>
         public void ScaleImage(int? width, int? height)
         {
             if (width.HasValue || height.HasValue)
@@ -560,138 +543,132 @@ namespace BinnImg
                 {
                     width = (int)Math.Round((float)(Width * height!.Value) / Height);
                 }
-                Width = width.Value;
-                Height = height.Value;
                 ImageData = ScaleImage(ImageData, (width.Value, height.Value));
             }
         }
 
 
-        private Bitmap ScaleImage(Bitmap image, (int, int) newDimensions)
+        /// <summary>
+        /// Mirrors the image along the vertical axis
+        /// </summary>
+        public void MirrorHorizontal()
         {
-            if (newDimensions.Item1 == image.Width && newDimensions.Item2 == image.Height)
+            Bitmap newImage = new(ImageData);
+            newImage.RotateFlip(RotateFlipType.RotateNoneFlipX);
+            ImageData = newImage;
+        }
+
+
+        /// <summary>
+        /// Rotates the image 90 degrees clockwise
+        /// </summary>
+        public void RotateClockwise()
+        {
+            RotateClockwise(1);
+        }
+
+
+        /// <summary>
+        /// Rotates the image 90 degrees counterclockwise
+        /// </summary>
+        public void RotateCounterclockwise()
+        {
+            RotateCounterclockwise(1);
+        }
+
+
+        /// <summary>
+        /// Rotates the image 90 degrees clockwise
+        /// </summary>
+        public void RotateClockwise(int iterations)
+        {
+            Bitmap newImage = new(ImageData);
+            iterations %= 4;
+            for(int i = 0; i < iterations; i++)
             {
-                return image;
+                newImage.RotateFlip(RotateFlipType.Rotate90FlipNone);
             }
+            ImageData = newImage;
+        }
 
-            int newWidth = newDimensions.Item1;
-            int newHeight = newDimensions.Item2;
-            Bitmap resultImage = new(newWidth, newHeight);
-            resultImage.SetResolution(image.HorizontalResolution, image.VerticalResolution);
 
-            using (Graphics graphics = Graphics.FromImage(resultImage))
+        /// <summary>
+        /// Rotates the image 90 degrees counterclockwise
+        /// </summary>
+        public void RotateCounterclockwise(int iterations)
+        {
+            Bitmap newImage = new(ImageData);
+            iterations %= 4;
+            for (int i = 0; i < iterations; i++)
             {
-                graphics.CompositingMode = CompositingMode.SourceCopy;
-                graphics.CompositingQuality = CompositingQuality.HighQuality;
-                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                graphics.SmoothingMode = SmoothingMode.HighQuality;
-                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                newImage.RotateFlip(RotateFlipType.Rotate270FlipNone);
+            }
+            ImageData = newImage;
+        }
 
-                using (ImageAttributes wrapMode = new())
+
+        /// <summary>
+        /// Mirrors the image along the horizontal axis
+        /// </summary>
+        public void MirrorVertical()
+        {
+            Bitmap newImage = new(ImageData);
+            newImage.RotateFlip(RotateFlipType.RotateNoneFlipY);
+            ImageData = newImage;
+        }
+
+
+        /// <summary>
+        /// Grayscales the image
+        /// </summary>
+        public void Grayscale()
+        {
+            MapColorsByMatrix(new(76, 76, 76), new(150, 150, 150), new(29, 29, 29));
+        }
+
+
+        public void MapColorsByMatrix(Color redChannel, Color greenChannel, Color blueChannel)
+        {
+            Bitmap newImage = new(ImageData.Width, ImageData.Height);
+            using var g = Graphics.FromImage(newImage);
+            ColorMatrix matrix = new(
+                new float[][]
                 {
-                    wrapMode.SetWrapMode(WrapMode.TileFlipXY);
-                    Rectangle newRectangle = new(0, 0, newWidth, newHeight);
-                    graphics.DrawImage(image, newRectangle, 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, wrapMode);
-                }
-            }
-            return resultImage;
+                    new float[] { redChannel.R / 255f, redChannel.G / 255f, redChannel.B / 255f, 0, 0},
+                    new float[] { greenChannel.R / 255f, greenChannel.G / 255f, greenChannel.B / 255f, 0, 0},
+                    new float[] { blueChannel.R / 255f, blueChannel.G / 255f, blueChannel.B / 255f, 0, 0},
+                    new float[] {0, 0, 0, 1, 0},
+                    new float[] {0, 0, 0, 0, 1}
+                });
+            using ImageAttributes attributes = new();
+            attributes.SetColorMatrix(matrix);
+            g.DrawImage(ImageData, new(0, 0, ImageData.Width, ImageData.Height),
+                0, 0, ImageData.Width, ImageData.Height, GraphicsUnit.Pixel, attributes);
+            ImageData = newImage;
         }
 
 
-        private Bitmap RotateImageDegrees(Bitmap image, float rotationAngle)
+        public void MapColorsByMatrix(Color redChannel, Color greenChannel, Color blueChannel, Color alphaChannel)
         {
-            if (rotationAngle == 0)
-            {
-                return image;
-            }
-
-            while (rotationAngle < 0)
-            {
-                rotationAngle += 360;
-            }
-            rotationAngle %= 360;
-
-            float angleRadians = rotationAngle * (float)(Math.PI / 180);
-            float sinAngle = (float)Math.Sin(angleRadians);
-            float cosAngle = (float)Math.Cos(angleRadians);
-
-            float initialWidth = image.Width;
-            float initialHeight = image.Height;
-            float newWidthTemp = Math.Abs(initialHeight * sinAngle) + Math.Abs(initialWidth * cosAngle);
-            float newHeightTemp = Math.Abs(initialWidth * sinAngle) + Math.Abs(initialHeight * cosAngle);
-            int newWidth = Convert.ToInt32(newWidthTemp);
-            int newHeight = Convert.ToInt32(newHeightTemp);
-
-            Bitmap result = new Bitmap(newWidth, newHeight);
-            using (Graphics g = Graphics.FromImage(result))
-            {
-                g.TranslateTransform(result.Width / 2, result.Height / 2);
-                g.RotateTransform(rotationAngle);
-                g.TranslateTransform(-result.Width / 2, -result.Height / 2);
-                g.DrawImage(image, new System.Drawing.Point((newWidth - image.Width) / 2, (newHeight - image.Height) / 2));
-            }
-            return result;
+            Bitmap newImage = new(ImageData.Width, ImageData.Height);
+            using var g = Graphics.FromImage(newImage);
+            ColorMatrix matrix = new(
+                new float[][]
+                {
+                    new float[] { redChannel.R / 255f, redChannel.G / 255f, redChannel.B / 255f, 0, 0},
+                    new float[] { greenChannel.R / 255f, greenChannel.G / 255f, greenChannel.B / 255f, 0, 0},
+                    new float[] { blueChannel.R / 255f, blueChannel.G / 255f, blueChannel.B / 255f, 0, 0},
+                    new float[] { alphaChannel.R / 255f, alphaChannel.G / 255f, alphaChannel.B / 255f, 1, 0},
+                    new float[] {0, 0, 0, 0, 1}
+                });
+            using ImageAttributes attributes = new();
+            attributes.SetColorMatrix(matrix);
+            g.DrawImage(ImageData, new(0, 0, ImageData.Width, ImageData.Height),
+                0, 0, ImageData.Width, ImageData.Height, GraphicsUnit.Pixel, attributes);
+            ImageData = newImage;
         }
 
-
-        private Bitmap MirrorImage(Bitmap image, bool mirrorHorizontal, bool mirrorVertical)
-        {
-            if (!mirrorHorizontal && !mirrorVertical)
-            {
-                return image;
-            }
-
-            Bitmap newImage = new(image);
-            if (mirrorHorizontal)
-            {
-                newImage.RotateFlip(RotateFlipType.RotateNoneFlipX);
-            }
-            if (mirrorVertical)
-            {
-                newImage.RotateFlip(RotateFlipType.RotateNoneFlipY);
-            }
-
-            return newImage;
-        }
-
-
-        public static Color OverlayColor(Color bottom, Color top)
-        {
-            if (top.A == 255)
-            {
-                return top;
-            }
-            if (top.A == 0)
-            {
-                return bottom;
-            }
-            if (bottom.A == 0)
-            {
-                return top;
-            }
-
-            float bottomA01 = bottom.A / 255.0f;
-            float bottomR01 = bottom.R / 255.0f;
-            float bottomG01 = bottom.G / 255.0f;
-            float bottomB01 = bottom.B / 255.0f;
-            float topA01 = top.A / 255.0f;
-            float topR01 = top.R / 255.0f;
-            float topG01 = top.G / 255.0f;
-            float topB01 = top.B / 255.0f;
-
-            float alphaConjugate = 1 - topA01;
-            float resultAlpha = 1 - alphaConjugate * (1 - bottomA01);
-            float resultRed = (topR01 * topA01) + (bottomR01 * bottomA01 * alphaConjugate);
-            float resultGreen = (topG01 * topA01) + (bottomG01 * bottomA01 * alphaConjugate);
-            float resultBlue = (topB01 * topA01) + (bottomB01 * bottomA01 * alphaConjugate);
-
-            byte resultAlphaByte = (byte)(255 * resultAlpha);
-            byte resultRedByte = (byte)(255 * resultRed);
-            byte resultGreenByte = (byte)(255 * resultGreen);
-            byte resultBlueByte = (byte)(255 * resultBlue);
-            return new(resultAlphaByte, resultRedByte, resultGreenByte, resultBlueByte);
-        }
-
+        #endregion
 
         public bool Equals(BinnImage obj)
         {
@@ -723,18 +700,7 @@ namespace BinnImg
         public void Dispose()
         {
             ImageData.Dispose();
-        }
-
-
-        public static bool operator ==(BinnImage a, BinnImage b)
-        {
-            return a.Equals(b);
-        }
-
-
-        public static bool operator !=(BinnImage a, BinnImage b)
-        {
-            return !a.Equals(b);
+            GC.SuppressFinalize(this);
         }
 
 
@@ -773,14 +739,138 @@ namespace BinnImg
         {
             set
             {
-                for(int x = rangeX.Start.Value; x <= rangeX.End.Value; x++)
+                for (int x = rangeX.Start.Value; x <= rangeX.End.Value; x++)
                 {
-                    for(int y = rangeY.Start.Value; y <= rangeY.End.Value; y++)
+                    for (int y = rangeY.Start.Value; y <= rangeY.End.Value; y++)
                     {
                         this[x, y] = value;
                     }
                 }
             }
+        }
+
+
+        public static bool operator ==(BinnImage a, BinnImage b)
+        {
+            return a.Equals(b);
+        }
+
+
+        public static bool operator !=(BinnImage a, BinnImage b)
+        {
+            return !a.Equals(b);
+        }
+
+
+        public override bool Equals(object? obj)
+        {
+            if (obj == null)
+            {
+                return false;
+            }
+
+            return GetHashCode() == obj.GetHashCode();
+        }
+
+
+        public override int GetHashCode()
+        {
+            return ImageData.GetHashCode();
+        }
+
+
+        private void CreateImage(int width, int height, Color backgroundColor)
+        {
+            ImageData = new Bitmap(width, height);
+            ClearImage(backgroundColor);
+        }
+
+
+        private static Bitmap ScaleImage(Bitmap image, (int, int) newDimensions)
+        {
+            if (newDimensions.Item1 == image.Width && newDimensions.Item2 == image.Height)
+            {
+                return image;
+            }
+
+            int newWidth = newDimensions.Item1;
+            int newHeight = newDimensions.Item2;
+            Bitmap resultImage = new(newWidth, newHeight);
+            resultImage.SetResolution(image.HorizontalResolution, image.VerticalResolution);
+
+            using (Graphics graphics = Graphics.FromImage(resultImage))
+            {
+                graphics.CompositingMode = CompositingMode.SourceCopy;
+                graphics.CompositingQuality = CompositingQuality.HighQuality;
+                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                graphics.SmoothingMode = SmoothingMode.HighQuality;
+                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+                using (ImageAttributes wrapMode = new())
+                {
+                    wrapMode.SetWrapMode(WrapMode.TileFlipXY);
+                    Rectangle newRectangle = new(0, 0, newWidth, newHeight);
+                    graphics.DrawImage(image, newRectangle, 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, wrapMode);
+                }
+            }
+            return resultImage;
+        }
+
+
+        private static Bitmap RotateImageDegrees(Bitmap image, float rotationAngle)
+        {
+            if (rotationAngle == 0)
+            {
+                return image;
+            }
+
+            while (rotationAngle < 0)
+            {
+                rotationAngle += 360;
+            }
+            rotationAngle %= 360;
+
+            float angleRadians = rotationAngle * (float)(Math.PI / 180);
+            float sinAngle = (float)Math.Sin(angleRadians);
+            float cosAngle = (float)Math.Cos(angleRadians);
+
+            float initialWidth = image.Width;
+            float initialHeight = image.Height;
+            float newWidthTemp = Math.Abs(initialHeight * sinAngle) + Math.Abs(initialWidth * cosAngle);
+            float newHeightTemp = Math.Abs(initialWidth * sinAngle) + Math.Abs(initialHeight * cosAngle);
+            int newWidth = Convert.ToInt32(newWidthTemp);
+            int newHeight = Convert.ToInt32(newHeightTemp);
+
+            Bitmap result = new Bitmap(newWidth, newHeight);
+            using (Graphics g = Graphics.FromImage(result))
+            {
+                g.TranslateTransform(result.Width / 2, result.Height / 2);
+                g.RotateTransform(rotationAngle);
+                g.TranslateTransform(-result.Width / 2, -result.Height / 2);
+                g.DrawImage(image, new System.Drawing.Point((newWidth - image.Width) / 2, (newHeight - image.Height) / 2));
+            }
+            return result;
+        }
+
+
+        private static Bitmap MirrorImage(Bitmap image, bool mirrorHorizontal, bool mirrorVertical)
+        {
+            if (!mirrorHorizontal && !mirrorVertical)
+            {
+                return image;
+            }
+
+            Bitmap newImage = new(image);
+            if (mirrorHorizontal)
+            {
+                newImage.RotateFlip(RotateFlipType.RotateNoneFlipX);
+            }
+            if (mirrorVertical)
+            {
+                newImage.RotateFlip(RotateFlipType.RotateNoneFlipY);
+            }
+
+            return newImage;
         }
     }
 }

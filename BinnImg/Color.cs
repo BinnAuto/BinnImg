@@ -760,6 +760,43 @@
 
         #endregion
 
+        public static Color OverlayColors(Color bottom, Color top)
+        {
+            if (top.A == 255)
+            {
+                return top;
+            }
+            if (top.A == 0)
+            {
+                return bottom;
+            }
+            if (bottom.A == 0)
+            {
+                return top;
+            }
+
+            float bottomA01 = bottom.A / 255.0f;
+            float bottomR01 = bottom.R / 255.0f;
+            float bottomG01 = bottom.G / 255.0f;
+            float bottomB01 = bottom.B / 255.0f;
+            float topA01 = top.A / 255.0f;
+            float topR01 = top.R / 255.0f;
+            float topG01 = top.G / 255.0f;
+            float topB01 = top.B / 255.0f;
+
+            float alphaConjugate = 1 - topA01;
+            float resultAlpha = 1 - alphaConjugate * (1 - bottomA01);
+            float resultRed = (topR01 * topA01) + (bottomR01 * bottomA01 * alphaConjugate);
+            float resultGreen = (topG01 * topA01) + (bottomG01 * bottomA01 * alphaConjugate);
+            float resultBlue = (topB01 * topA01) + (bottomB01 * bottomA01 * alphaConjugate);
+
+            byte resultAlphaByte = (byte)(255 * resultAlpha);
+            byte resultRedByte = (byte)(255 * resultRed);
+            byte resultGreenByte = (byte)(255 * resultGreen);
+            byte resultBlueByte = (byte)(255 * resultBlue);
+            return new(resultAlphaByte, resultRedByte, resultGreenByte, resultBlueByte);
+        }
+
         #region Operator Functions
 
         public static implicit operator Color(string s)
